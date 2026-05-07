@@ -147,6 +147,9 @@ export class GitWorktreeManager {
 
             if (!worktreePath) { continue; }
 
+            // Skip ghost worktrees whose directory was deleted without `git worktree prune`
+            if (!fs.existsSync(worktreePath)) { continue; }
+
             // The first worktree listed is the main one
             isMain = worktrees.length === 0;
 
@@ -198,6 +201,8 @@ export class GitWorktreeManager {
             ? worktreePath
             : path.join(path.dirname(repoPath), `${path.basename(repoPath)}-wt-${safeName}`);
 
+        this.assertNotNestedRepo(resolvedPath);
+
         // Check if branch already exists
         const branches = this.execGit(['branch', '--list', branchName], repoPath).trim();
         if (branches) {
@@ -219,6 +224,8 @@ export class GitWorktreeManager {
         const resolvedPath = worktreePath
             ? worktreePath
             : path.join(path.dirname(repoPath), `${path.basename(repoPath)}-wt-${safeName}`);
+
+        this.assertNotNestedRepo(resolvedPath);
 
         this.execGit(['worktree', 'add', '-b', branchName, resolvedPath, baseBranch], repoPath);
         return resolvedPath;
@@ -451,6 +458,24 @@ export class GitWorktreeManager {
     // File I/O helpers (used by MCP server)
     // -------------------------------------------------------------------------
 
+    /**
+     * Returns true when filePath is under at least one of the known workspace
+     * folders.  Used by the MCP server to prevent path-traversal attacks.
+     *
+     * Comparison is case-insensitive to handle macOS/Windows filesystems where
+     * `/Users/Workspace` and `/users/workspace` refer to the same directory.
+     */
+    isPathWithinWorkspace(filePath: string): boolean {
+        const resolved = path.resolve(filePath).toLowerCase();
+        return this.workspaceFolders.some(folder => {
+            const folderResolved = path.resolve(folder).toLowerCase();
+            return (
+                resolved === folderResolved ||
+                resolved.startsWith(folderResolved + path.sep)
+            );
+        });
+    }
+
     readFile(filePath: string): string {
         return fs.readFileSync(filePath, 'utf8');
     }
@@ -464,6 +489,33 @@ export class GitWorktreeManager {
     // -------------------------------------------------------------------------
     // Low-level exec helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Throws if targetPath is already inside an existing git repository.
+     * Prevents accidentally nesting a new worktree inside another repo's
+     * working tree, which causes confusing errors.
+     */
+    private assertNotNestedRepo(targetPath: string): void {
+        // Walk up from the resolved target path; if we find a .git directory
+        // before reaching the filesystem root, the path is nested in a repo.
+        let current = path.resolve(targetPath);
+        // Start from parent so that a worktree placed at exactly the repo root
+        // is caught, but skip the leaf itself (it may not exist yet).
+        current = path.dirname(current);
+        while (true) {
+            // fs.existsSync returns true for both .git directories (main repos)
+            // and .git files (worktrees/submodules), so both cases are covered.
+            if (fs.existsSync(path.join(current, '.git'))) {
+                throw new Error(
+                    `Target path "${targetPath}" is inside an existing git repository ` +
+                    `("${current}"). Choose a path outside any git repository.`
+                );
+            }
+            const parent = path.dirname(current);
+            if (parent === current) { break; } // filesystem root
+            current = parent;
+        }
+    }
 
     private execGit(args: string[], cwd: string, cmd = 'git'): string {
         return this.exec(cmd, args, cwd);
