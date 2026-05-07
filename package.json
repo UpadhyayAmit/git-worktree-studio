@@ -1,0 +1,279 @@
+{
+  "name": "git-worktree-studio",
+  "displayName": "Git Worktree Studio",
+  "description": "Multi-repo multi-branch parallel development using git worktrees, with MCP server for AI models",
+  "version": "0.3.0",
+  "publisher": "AmitUpadhyay",
+  "author": {
+    "name": "Amit Upadhyay"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/.git"
+  ],
+  "main": "./out/extension.js",
+  "icon": "resources/multi-branch.svg",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gitWorktreeStudio",
+          "title": "Git Worktree Studio",
+          "icon": "resources/multi-branch.svg"
+        }
+      ]
+    },
+    "views": {
+      "gitWorktreeStudio": [
+        {
+          "id": "gitWorktreeRepos",
+          "name": "Repositories"
+        },
+        {
+          "id": "gitWorktreeChanges",
+          "name": "Changes"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "gitMultiBranch.refresh",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "gitMultiBranch.fetchAll",
+        "title": "Fetch All",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "gitMultiBranch.createWorktree",
+        "title": "Create Worktree Branch",
+        "icon": "$(add)"
+      },
+      {
+        "command": "gitMultiBranch.addBranch",
+        "title": "Add Branch",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "gitMultiBranch.removeWorktree",
+        "title": "Remove Worktree"
+      },
+      {
+        "command": "gitMultiBranch.openWorktree",
+        "title": "Open in New Window"
+      },
+      {
+        "command": "gitMultiBranch.commitWorktree",
+        "title": "Commit",
+        "icon": "$(check)"
+      },
+      {
+        "command": "gitMultiBranch.push",
+        "title": "Push",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "gitMultiBranch.pull",
+        "title": "Pull",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "gitMultiBranch.syncBranch",
+        "title": "Sync Branch"
+      },
+      {
+        "command": "gitMultiBranch.createPR",
+        "title": "Create Pull Request"
+      },
+      {
+        "command": "gitMultiBranch.stash",
+        "title": "Stash Changes"
+      },
+      {
+        "command": "gitMultiBranch.stashPop",
+        "title": "Pop Stash"
+      },
+      {
+        "command": "gitMultiBranch.mergeBranch",
+        "title": "Merge Branch"
+      },
+      {
+        "command": "gitMultiBranch.viewLog",
+        "title": "View Log"
+      },
+      {
+        "command": "gitMultiBranch.switchBranch",
+        "title": "Switch Branch"
+      },
+      {
+        "command": "gitMultiBranch.deleteBranch",
+        "title": "Delete Branch"
+      },
+      {
+        "command": "gitMultiBranch.stageFile",
+        "title": "Stage File",
+        "icon": "$(add)"
+      },
+      {
+        "command": "gitMultiBranch.unstageFile",
+        "title": "Unstage File"
+      },
+      {
+        "command": "gitMultiBranch.discardFile",
+        "title": "Discard Changes",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "gitMultiBranch.diffFile",
+        "title": "Open Diff",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "gitMultiBranch.openFile",
+        "title": "Open File"
+      },
+      {
+        "command": "gitMultiBranch.startMcpServer",
+        "title": "Start MCP Server"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "gitMultiBranch.refresh",
+          "when": "view == gitWorktreeRepos || view == gitWorktreeChanges",
+          "group": "navigation"
+        },
+        {
+          "command": "gitMultiBranch.fetchAll",
+          "when": "view == gitWorktreeRepos",
+          "group": "navigation"
+        },
+        {
+          "command": "gitMultiBranch.createWorktree",
+          "when": "view == gitWorktreeChanges",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "gitMultiBranch.addBranch",
+          "when": "viewItem == repo",
+          "group": "inline"
+        },
+        {
+          "command": "gitMultiBranch.commitWorktree",
+          "when": "viewItem == branch || viewItem == mainBranch",
+          "group": "inline"
+        },
+        {
+          "command": "gitMultiBranch.push",
+          "when": "viewItem == branch || viewItem == mainBranch",
+          "group": "inline"
+        },
+        {
+          "command": "gitMultiBranch.pull",
+          "when": "viewItem == branch || viewItem == mainBranch",
+          "group": "inline"
+        },
+        {
+          "command": "gitMultiBranch.removeWorktree",
+          "when": "viewItem == branch",
+          "group": "worktree"
+        },
+        {
+          "command": "gitMultiBranch.openWorktree",
+          "when": "viewItem == branch || viewItem == mainBranch",
+          "group": "worktree"
+        },
+        {
+          "command": "gitMultiBranch.syncBranch",
+          "when": "viewItem == branch || viewItem == mainBranch",
+          "group": "scm"
+        },
+        {
+          "command": "gitMultiBranch.createPR",
+          "when": "viewItem == branch || viewItem == mainBranch",
+          "group": "scm"
+        },
+        {
+          "command": "gitMultiBranch.stash",
+          "when": "viewItem == branch || viewItem == mainBranch",
+          "group": "scm"
+        },
+        {
+          "command": "gitMultiBranch.stashPop",
+          "when": "viewItem == branch || viewItem == mainBranch",
+          "group": "scm"
+        },
+        {
+          "command": "gitMultiBranch.mergeBranch",
+          "when": "viewItem == branch || viewItem == mainBranch",
+          "group": "scm"
+        },
+        {
+          "command": "gitMultiBranch.switchBranch",
+          "when": "viewItem == branch || viewItem == mainBranch",
+          "group": "scm"
+        },
+        {
+          "command": "gitMultiBranch.deleteBranch",
+          "when": "viewItem == branch",
+          "group": "scm"
+        },
+        {
+          "command": "gitMultiBranch.viewLog",
+          "when": "viewItem == branch || viewItem == mainBranch",
+          "group": "info"
+        },
+        {
+          "command": "gitMultiBranch.stageFile",
+          "when": "viewItem == file",
+          "group": "inline"
+        },
+        {
+          "command": "gitMultiBranch.discardFile",
+          "when": "viewItem == file",
+          "group": "inline"
+        },
+        {
+          "command": "gitMultiBranch.diffFile",
+          "when": "viewItem == file",
+          "group": "inline"
+        },
+        {
+          "command": "gitMultiBranch.unstageFile",
+          "when": "viewItem == file",
+          "group": "file"
+        },
+        {
+          "command": "gitMultiBranch.openFile",
+          "when": "viewItem == file",
+          "group": "file"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js",
+    "package": "npx vsce package --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0",
+    "typescript": "^5.3.0"
+  }
+}
