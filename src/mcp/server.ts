@@ -2,7 +2,7 @@
  * Git Worktree Studio — MCP Server
  *
  * Protocol:  MCP v2024-11-05 over stdio (JSON-RPC 2.0)
- * Tools:     18 tools for AI model integration
+ * Tools:     19 tools for AI model integration
  * Author:    Amit Upadhyay
  */
 
