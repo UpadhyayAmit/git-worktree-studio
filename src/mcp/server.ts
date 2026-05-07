@@ -272,6 +272,100 @@ const TOOLS: McpTool[] = [
             },
             required: ['worktreePath', 'filePath']
         }
+    },
+    {
+        name: 'fetch',
+        description: 'Fetch from all remotes in a worktree (prunes deleted remote branches).',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                worktreePath: { type: 'string', description: 'Absolute path to the worktree.' }
+            },
+            required: ['worktreePath']
+        }
+    },
+    {
+        name: 'list_stashes',
+        description: 'List all stashes in a worktree.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                worktreePath: { type: 'string', description: 'Absolute path to the worktree.' }
+            },
+            required: ['worktreePath']
+        }
+    },
+    {
+        name: 'stash_drop',
+        description: 'Drop a specific stash by index.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                worktreePath: { type: 'string', description: 'Absolute path to the worktree.' },
+                index: { type: 'string', description: 'Stash index to drop (default: 0).' }
+            },
+            required: ['worktreePath']
+        }
+    },
+    {
+        name: 'switch_branch',
+        description: 'Checkout a branch in a worktree.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                worktreePath: { type: 'string', description: 'Absolute path to the worktree.' },
+                branchName: { type: 'string', description: 'Branch name to checkout.' }
+            },
+            required: ['worktreePath', 'branchName']
+        }
+    },
+    {
+        name: 'rename_branch',
+        description: 'Rename a local branch.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                repoPath: { type: 'string', description: 'Absolute path to the git repository.' },
+                oldName: { type: 'string', description: 'Current branch name.' },
+                newName: { type: 'string', description: 'New branch name.' }
+            },
+            required: ['repoPath', 'oldName', 'newName']
+        }
+    },
+    {
+        name: 'list_branches',
+        description: 'List all local and remote branches in a repository.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                repoPath: { type: 'string', description: 'Absolute path to the git repository.' }
+            },
+            required: ['repoPath']
+        }
+    },
+    {
+        name: 'rebase',
+        description: 'Rebase the current worktree branch onto another branch.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                worktreePath: { type: 'string', description: 'Absolute path to the worktree.' },
+                onto: { type: 'string', description: 'Branch to rebase onto.' }
+            },
+            required: ['worktreePath', 'onto']
+        }
+    },
+    {
+        name: 'amend_commit',
+        description: 'Amend the last commit, optionally with a new message.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                worktreePath: { type: 'string', description: 'Absolute path to the worktree.' },
+                message: { type: 'string', description: 'New commit message (optional; omit to keep existing).' }
+            },
+            required: ['worktreePath']
+        }
     }
 ];
 
@@ -402,6 +496,47 @@ async function callTool(
             return { message: `Discarded changes to ${args.filePath}` };
         }
 
+        case 'fetch': {
+            await manager.fetch(args.worktreePath);
+            return { message: 'Fetch completed.' };
+        }
+
+        case 'list_stashes': {
+            const stashes = await manager.listStashes(args.worktreePath);
+            return { stashes };
+        }
+
+        case 'stash_drop': {
+            const index = args.index ? parseInt(args.index, 10) : 0;
+            await manager.stashDrop(args.worktreePath, index);
+            return { message: `Stash ${index} dropped.` };
+        }
+
+        case 'switch_branch': {
+            await manager.switchBranch(args.worktreePath, args.branchName);
+            return { message: `Switched to "${args.branchName}".` };
+        }
+
+        case 'rename_branch': {
+            await manager.renameBranch(args.repoPath, args.oldName, args.newName);
+            return { message: `Branch renamed from "${args.oldName}" to "${args.newName}".` };
+        }
+
+        case 'list_branches': {
+            const branches = await manager.listAllBranches(args.repoPath);
+            return branches;
+        }
+
+        case 'rebase': {
+            await manager.rebaseBranch(args.worktreePath, args.onto);
+            return { message: `Rebased onto "${args.onto}" successfully.` };
+        }
+
+        case 'amend_commit': {
+            await manager.amendCommit(args.worktreePath, args.message || undefined);
+            return { message: 'Commit amended successfully.' };
+        }
+
         default:
             throw new Error(`Unknown tool: ${toolName}`);
     }
@@ -429,7 +564,7 @@ async function handleRequest(
         return makeResult(id, {
             protocolVersion: '2024-11-05',
             capabilities: { tools: {} },
-            serverInfo: { name: 'git-worktree-studio', version: '0.3.0' }
+            serverInfo: { name: 'git-worktree-studio', version: '0.4.0' }
         });
     }
 
