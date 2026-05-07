@@ -28,15 +28,18 @@ export class WorktreeTreeItem extends vscode.TreeItem {
 }
 
 // ---------------------------------------------------------------------------
-// Repos Tree Provider (flat list of repos)
+// Repos Tree Provider (flat list of repos → worktrees)
 // ---------------------------------------------------------------------------
 export class ReposTreeProvider implements vscode.TreeDataProvider<WorktreeTreeItem> {
     private _onDidChangeTreeData = new vscode.EventEmitter<WorktreeTreeItem | undefined | void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
+    private repos: RepoInfo[] = [];
+
     constructor(private manager: GitWorktreeManager) {}
 
     refresh(): void {
+        this.repos = [];
         this._onDidChangeTreeData.fire();
     }
 
@@ -46,22 +49,56 @@ export class ReposTreeProvider implements vscode.TreeDataProvider<WorktreeTreeIt
 
     async getChildren(element?: WorktreeTreeItem): Promise<WorktreeTreeItem[]> {
         if (!element) {
-            const repos = await this.manager.discoverRepos();
-            return repos.map(repo => this.buildRepoItem(repo));
+            if (this.repos.length === 0) {
+                this.repos = await this.manager.discoverRepos();
+            }
+            return this.repos.map(repo => this.buildRepoItem(repo));
         }
+
+        if (element.contextValue === 'repo' && element.repoPath) {
+            const repo = this.repos.find(r => r.repoPath === element.repoPath);
+            if (!repo) { return []; }
+            return repo.worktrees.map(wt => this.buildWorktreeItem(wt, repo.repoPath));
+        }
+
         return [];
     }
 
     private buildRepoItem(repo: RepoInfo): WorktreeTreeItem {
         const item = new WorktreeTreeItem(
             repo.name,
-            vscode.TreeItemCollapsibleState.None,
+            vscode.TreeItemCollapsibleState.Expanded,
             'repo'
         );
         item.description = repo.currentBranch;
         item.tooltip = repo.repoPath;
         item.repoPath = repo.repoPath;
         item.iconPath = new vscode.ThemeIcon('repo');
+        return item;
+    }
+
+    private buildWorktreeItem(wt: WorktreeInfo, repoPath: string): WorktreeTreeItem {
+        const contextValue: ItemContext = wt.isMain ? 'mainBranch' : 'branch';
+        const label = wt.branch || path.basename(wt.worktreePath);
+
+        const item = new WorktreeTreeItem(
+            label,
+            vscode.TreeItemCollapsibleState.None,
+            contextValue
+        );
+
+        const parts: string[] = [];
+        if (wt.isMain) { parts.push('main'); }
+        if (wt.ahead > 0) { parts.push(`↑${wt.ahead}`); }
+        if (wt.behind > 0) { parts.push(`↓${wt.behind}`); }
+        if (wt.changedFiles.length > 0) { parts.push(`${wt.changedFiles.length} changes`); }
+        item.description = parts.join('  ');
+
+        item.tooltip = wt.worktreePath;
+        item.repoPath = repoPath;
+        item.worktreePath = wt.worktreePath;
+        item.branchName = wt.branch;
+        item.iconPath = new vscode.ThemeIcon(wt.isMain ? 'git-branch' : 'git-commit');
         return item;
     }
 }
