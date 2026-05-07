@@ -19,7 +19,7 @@ A VS Code extension for multi-repo, multi-branch parallel development using **gi
 - **Status bar** — shows the active worktree branch and ahead/behind counts for the current file
 - **Configurable settings** — auto-refresh interval and repository discovery depth
 - **Keyboard shortcuts** — quick access to Refresh, Fetch All, and Create Worktree
-- **MCP server** — 28 tools for AI models to perform git operations in parallel across repos and branches
+- **MCP server** — 27 tools for AI models to perform git operations in parallel across repos and branches
 
 ---
 
