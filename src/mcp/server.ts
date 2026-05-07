@@ -407,11 +407,23 @@ async function callTool(
         }
 
         case 'read_file': {
+            if (!manager.isPathWithinWorkspace(args.filePath)) {
+                throw new Error(
+                    `Access denied: "${args.filePath}" is outside the workspace. ` +
+                    `Call list_repos first to set the workspace scope.`
+                );
+            }
             const content = manager.readFile(args.filePath);
             return { content };
         }
 
         case 'write_file': {
+            if (!manager.isPathWithinWorkspace(args.filePath)) {
+                throw new Error(
+                    `Access denied: "${args.filePath}" is outside the workspace. ` +
+                    `Call list_repos first to set the workspace scope.`
+                );
+            }
             manager.writeFile(args.filePath, args.content);
             return { message: `File written: ${args.filePath}` };
         }
