@@ -2,7 +2,7 @@
   "name": "git-worktree-studio",
   "displayName": "Git Worktree Studio",
   "description": "Multi-repo multi-branch parallel development using git worktrees, with MCP server for AI models",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "AmitUpadhyay",
   "author": {
     "name": "Amit Upadhyay"
@@ -21,6 +21,24 @@
   "main": "./out/extension.js",
   "icon": "resources/multi-branch.svg",
   "contributes": {
+    "configuration": {
+      "title": "Git Worktree Studio",
+      "properties": {
+        "gitWorktreeStudio.autoRefreshInterval": {
+          "type": "number",
+          "default": 30000,
+          "description": "Auto-refresh interval in milliseconds (0 to disable).",
+          "minimum": 0
+        },
+        "gitWorktreeStudio.discoveryDepth": {
+          "type": "number",
+          "default": 2,
+          "description": "Maximum directory depth to search for git repositories.",
+          "minimum": 1,
+          "maximum": 5
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -54,6 +72,11 @@
         "icon": "$(cloud-download)"
       },
       {
+        "command": "gitMultiBranch.fetchWorktree",
+        "title": "Fetch",
+        "icon": "$(cloud-download)"
+      },
+      {
         "command": "gitMultiBranch.createWorktree",
         "title": "Create Worktree Branch",
         "icon": "$(add)"
@@ -75,6 +98,10 @@
         "command": "gitMultiBranch.commitWorktree",
         "title": "Commit",
         "icon": "$(check)"
+      },
+      {
+        "command": "gitMultiBranch.amendCommit",
+        "title": "Amend Last Commit"
       },
       {
         "command": "gitMultiBranch.push",
@@ -103,8 +130,16 @@
         "title": "Pop Stash"
       },
       {
+        "command": "gitMultiBranch.stashList",
+        "title": "List Stashes"
+      },
+      {
         "command": "gitMultiBranch.mergeBranch",
         "title": "Merge Branch"
+      },
+      {
+        "command": "gitMultiBranch.rebaseBranch",
+        "title": "Rebase Branch"
       },
       {
         "command": "gitMultiBranch.viewLog",
@@ -113,6 +148,10 @@
       {
         "command": "gitMultiBranch.switchBranch",
         "title": "Switch Branch"
+      },
+      {
+        "command": "gitMultiBranch.renameBranch",
+        "title": "Rename Branch"
       },
       {
         "command": "gitMultiBranch.deleteBranch",
@@ -144,6 +183,26 @@
       {
         "command": "gitMultiBranch.startMcpServer",
         "title": "Start MCP Server"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "gitMultiBranch.refresh",
+        "key": "ctrl+shift+g r",
+        "mac": "cmd+shift+g r",
+        "when": "view == gitWorktreeRepos || view == gitWorktreeChanges"
+      },
+      {
+        "command": "gitMultiBranch.fetchAll",
+        "key": "ctrl+shift+g f",
+        "mac": "cmd+shift+g f",
+        "when": "view == gitWorktreeRepos || view == gitWorktreeChanges"
+      },
+      {
+        "command": "gitMultiBranch.createWorktree",
+        "key": "ctrl+shift+g n",
+        "mac": "cmd+shift+g n",
+        "when": "view == gitWorktreeRepos || view == gitWorktreeChanges"
       }
     ],
     "menus": {
@@ -186,6 +245,11 @@
           "group": "inline"
         },
         {
+          "command": "gitMultiBranch.fetchWorktree",
+          "when": "viewItem == branch || viewItem == mainBranch",
+          "group": "inline"
+        },
+        {
           "command": "gitMultiBranch.removeWorktree",
           "when": "viewItem == branch",
           "group": "worktree"
@@ -216,13 +280,33 @@
           "group": "scm"
         },
         {
+          "command": "gitMultiBranch.stashList",
+          "when": "viewItem == branch || viewItem == mainBranch",
+          "group": "scm"
+        },
+        {
           "command": "gitMultiBranch.mergeBranch",
+          "when": "viewItem == branch || viewItem == mainBranch",
+          "group": "scm"
+        },
+        {
+          "command": "gitMultiBranch.rebaseBranch",
           "when": "viewItem == branch || viewItem == mainBranch",
           "group": "scm"
         },
         {
           "command": "gitMultiBranch.switchBranch",
           "when": "viewItem == branch || viewItem == mainBranch",
+          "group": "scm"
+        },
+        {
+          "command": "gitMultiBranch.amendCommit",
+          "when": "viewItem == branch || viewItem == mainBranch",
+          "group": "scm"
+        },
+        {
+          "command": "gitMultiBranch.renameBranch",
+          "when": "viewItem == branch",
           "group": "scm"
         },
         {

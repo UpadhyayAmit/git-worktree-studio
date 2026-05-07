@@ -27,13 +27,19 @@ export interface FileChange {
 
 export class GitWorktreeManager {
     private workspaceFolders: string[];
+    private discoveryDepth: number;
 
-    constructor(workspaceFolders: string[]) {
+    constructor(workspaceFolders: string[], discoveryDepth = 2) {
         this.workspaceFolders = workspaceFolders;
+        this.discoveryDepth = discoveryDepth;
     }
 
     updateWorkspaceFolders(folders: string[]): void {
         this.workspaceFolders = folders;
+    }
+
+    setDiscoveryDepth(depth: number): void {
+        this.discoveryDepth = depth;
     }
 
     // -------------------------------------------------------------------------
@@ -45,7 +51,7 @@ export class GitWorktreeManager {
         const seen = new Set<string>();
 
         for (const folder of this.workspaceFolders) {
-            await this.findGitRepos(folder, 0, 2, repos, seen);
+            await this.findGitRepos(folder, 0, this.discoveryDepth, repos, seen);
         }
 
         return repos;
@@ -186,21 +192,36 @@ export class GitWorktreeManager {
     // Worktree CRUD
     // -------------------------------------------------------------------------
 
-    async createWorktree(repoPath: string, branchName: string): Promise<string> {
+    async createWorktree(repoPath: string, branchName: string, worktreePath?: string): Promise<string> {
         const safeName = branchName.replace(/[/\\]/g, '-');
-        const parentDir = path.dirname(repoPath);
-        const repoName = path.basename(repoPath);
-        const worktreePath = path.join(parentDir, `${repoName}-wt-${safeName}`);
+        const resolvedPath = worktreePath
+            ? worktreePath
+            : path.join(path.dirname(repoPath), `${path.basename(repoPath)}-wt-${safeName}`);
 
         // Check if branch already exists
         const branches = this.execGit(['branch', '--list', branchName], repoPath).trim();
         if (branches) {
-            this.execGit(['worktree', 'add', worktreePath, branchName], repoPath);
+            this.execGit(['worktree', 'add', resolvedPath, branchName], repoPath);
         } else {
-            this.execGit(['worktree', 'add', '-b', branchName, worktreePath], repoPath);
+            this.execGit(['worktree', 'add', '-b', branchName, resolvedPath], repoPath);
         }
 
-        return worktreePath;
+        return resolvedPath;
+    }
+
+    async createWorktreeFromBase(
+        repoPath: string,
+        branchName: string,
+        baseBranch: string,
+        worktreePath?: string
+    ): Promise<string> {
+        const safeName = branchName.replace(/[/\\]/g, '-');
+        const resolvedPath = worktreePath
+            ? worktreePath
+            : path.join(path.dirname(repoPath), `${path.basename(repoPath)}-wt-${safeName}`);
+
+        this.execGit(['worktree', 'add', '-b', branchName, resolvedPath, baseBranch], repoPath);
+        return resolvedPath;
     }
 
     async removeWorktree(repoPath: string, worktreePath: string): Promise<void> {
@@ -238,6 +259,14 @@ export class GitWorktreeManager {
         this.execGit(['commit', '-m', message], worktreePath);
     }
 
+    async amendCommit(worktreePath: string, message?: string): Promise<void> {
+        if (message) {
+            this.execGit(['commit', '--amend', '-m', message], worktreePath);
+        } else {
+            this.execGit(['commit', '--amend', '--no-edit'], worktreePath);
+        }
+    }
+
     async push(worktreePath: string, setUpstream = false): Promise<void> {
         if (setUpstream) {
             const branch = await this.getCurrentBranch(worktreePath);
@@ -260,6 +289,10 @@ export class GitWorktreeManager {
         this.execGit(['fetch', '--all', '--prune'], repoPath);
     }
 
+    async fetch(worktreePath: string): Promise<void> {
+        this.execGit(['fetch', '--prune'], worktreePath);
+    }
+
     // -------------------------------------------------------------------------
     // Branch management
     // -------------------------------------------------------------------------
@@ -270,6 +303,30 @@ export class GitWorktreeManager {
 
     async deleteBranch(repoPath: string, branchName: string): Promise<void> {
         this.execGit(['branch', '-D', branchName], repoPath);
+    }
+
+    async renameBranch(repoPath: string, oldName: string, newName: string): Promise<void> {
+        this.execGit(['branch', '-m', oldName, newName], repoPath);
+    }
+
+    async listLocalBranches(repoPath: string): Promise<string[]> {
+        const out = this.execGit(['branch', '--format=%(refname:short)'], repoPath);
+        return out.split('\n').map(b => b.trim()).filter(Boolean);
+    }
+
+    async listAllBranches(repoPath: string): Promise<{ local: string[]; remote: string[] }> {
+        const localOut = this.execGit(['branch', '--format=%(refname:short)'], repoPath);
+        const remoteOut = this.execGit(
+            ['branch', '-r', '--format=%(refname:short)'],
+            repoPath
+        );
+        const local = localOut.split('\n').map(b => b.trim()).filter(Boolean);
+        const remote = remoteOut.split('\n').map(b => b.trim()).filter(Boolean);
+        return { local, remote };
+    }
+
+    async rebaseBranch(worktreePath: string, onto: string): Promise<void> {
+        this.execGit(['rebase', onto], worktreePath);
     }
 
     async mergeBranch(worktreePath: string, sourceBranch: string): Promise<void> {
@@ -290,6 +347,22 @@ export class GitWorktreeManager {
 
     async stashPop(worktreePath: string): Promise<void> {
         this.execGit(['stash', 'pop'], worktreePath);
+    }
+
+    async stashDrop(worktreePath: string, index = 0): Promise<void> {
+        this.execGit(['stash', 'drop', `stash@{${index}}`], worktreePath);
+    }
+
+    async listStashes(worktreePath: string): Promise<string[]> {
+        try {
+            const out = this.execGit(
+                ['stash', 'list', '--format=%gd: %s'],
+                worktreePath
+            );
+            return out.split('\n').map(l => l.trim()).filter(Boolean);
+        } catch {
+            return [];
+        }
     }
 
     // -------------------------------------------------------------------------
