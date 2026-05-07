@@ -19,7 +19,7 @@
     "workspaceContains:**/.git"
   ],
   "main": "./out/extension.js",
-  "icon": "resources/multi-branch.png",
+  "icon": "resources/multi-branch.svg",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
