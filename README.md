@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-0.4.0-blue)
+![Version](https://img.shields.io/badge/version-0.5.0-blue)
 ![VS Code](https://img.shields.io/badge/vscode-%5E1.85.0-007ACC?logo=visualstudiocode)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![MCP](https://img.shields.io/badge/MCP-27%20tools-purple)
@@ -17,82 +17,19 @@
 
 Without worktrees, switching branches means stashing, waiting, context-switching. With **Git Worktree Studio**, each branch lives in its own folder — you develop `feat-auth`, `fix-bug`, and `main` simultaneously, side-by-side in VS Code.
 
-```text
-❌  Without Worktrees             ✅  With Git Worktree Studio
-──────────────────────────        ────────────────────────────────────
- [Work on main]                   main/              ← always open
-       │ stash ↓                  repo-wt-feat-auth/ ← open in parallel
- [Switch to feat-auth]            repo-wt-fix-bug/   ← open in parallel
-       │ stash ↓
- [Switch to fix-bug]              No stashing.  No context-switching.
-       │ restore ↓                All branches open simultaneously.
- [Back to main — lost focus]
-```
+![Workflow Comparison](resources/docs/diagram-workflow.png)
 
 ---
 
 ## Architecture
 
-```text
-┌──────────────────────────────────────────┐
-│           VS Code Extension              │
-│                                          │
-│  🌲 Tree Views      📊 Status Bar        │
-│  Repos · Changes    Branch · ↑↓ counts  │
-│                                          │
-│  ⚡ 30+ Commands    👁 File Watcher      │
-│  SCM actions        auto-refresh         │
-└──────────────────────┬───────────────────┘
-                       │ commands / events
-           ┌───────────▼────────────┐
-           │   GitWorktreeManager   │
-           │  Repo discovery        │
-           │  Worktree CRUD         │
-           │  Git shell operations  │
-           └──────┬─────────┬───────┘
-        tool calls │         │ git operations
-   ┌───────────────▼──┐  ┌──▼───────────────────┐
-   │   MCP Server     │  │  Local File System    │
-   │  27 tools        │  │  frontend/    ← main  │
-   │  stdio JSON-RPC  │  │  frontend-wt/ ← wt    │
-   │  AI: Claude/GPT  │  │  backend/     ← main  │
-   └──────────────────┘  │  backend-wt/  ← wt    │
-                         └───────────────────────┘
-```
+![Architecture](resources/docs/diagram-architecture.png)
 
 ---
 
 ## Parallel Development Workflow
 
-```text
-  Step 1 ─ Create Worktree Branch
-  ┌──────────────────────────────────────────────────────┐
-  │  You:  Create Worktree Branch "feat-auth"            │
-  │  GWS:  git worktree add ../repo-wt-feat-auth         │
-  │  ✅    New folder created — open in new window?      │
-  └──────────────────────────────────────────────────────┘
-
-  Step 2 ─ Develop in Parallel
-  ┌──────────────────────────────────────────────────────┐
-  │  main/              ← untouched, open in VS Code     │
-  │  repo-wt-feat-auth/ ← active development             │
-  └──────────────────────────────────────────────────────┘
-
-  Step 3 ─ Commit & Push
-  ┌──────────────────────────────────────────────────────┐
-  │  git commit -m "feat: add authentication"            │
-  │  git push origin feat-auth                           │
-  └──────────────────────────────────────────────────────┘
-
-  Step 4 ─ Create Pull Request
-  ┌──────────────────────────────────────────────────────┐
-  │  GitHub:       gh pr create                          │
-  │  Azure DevOps: az repos pr create                    │
-  │  ✅  PR URL opens in browser                         │
-  └──────────────────────────────────────────────────────┘
-
-  ✨  main branch remained untouched throughout!
-```
+![Parallel Workflow Steps](resources/docs/diagram-steps.png)
 
 ---
 
@@ -142,15 +79,7 @@ Without worktrees, switching branches means stashing, waiting, context-switching
 
 Connect AI models (Claude, Copilot, GPT) to your git repos and let them operate across branches in parallel.
 
-```text
-  ┌───────────────┐   tool calls    ┌──────────────────┐   ┌───────────────────────┐
-  │  AI Models    │   via stdio     │  Git Operations  │   │    Repositories       │
-  │               │                 │                  │   │                       │
-  │  🤖 Claude   ├────────────────►│  git CLI         ├──►│  💾 Local Worktrees   │
-  │  🤖 Copilot  │  MCP Server     │  gh CLI (PRs)    │   │  ☁️  Remote Branches  │
-  │  🤖 GPT      │  JSON-RPC       │  az CLI (PRs)    │   │                       │
-  └───────────────┘                 └──────────────────┘   └───────────────────────┘
-```
+![MCP Integration](resources/docs/diagram-mcp.png)
 
 ### MCP Tools Reference
 
@@ -187,10 +116,10 @@ npm install
 
 # 2. Compile & package
 npm run compile
-npm run package       # produces git-worktree-studio-0.4.0.vsix
+npm run package       # produces git-worktree-studio-0.5.0.vsix
 
 # 3. Install in VS Code
-code --install-extension git-worktree-studio-0.4.0.vsix --force
+code --install-extension git-worktree-studio-0.5.0.vsix --force
 ```
 
 ### Install from Marketplace

@@ -2,7 +2,7 @@
   "name": "git-worktree-studio",
   "displayName": "Git Worktree Studio",
   "description": "Multi-repo multi-branch parallel development using git worktrees, with MCP server for AI models",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "publisher": "AmitUpadhyay",
   "author": {
     "name": "Amit Upadhyay"
@@ -16,6 +16,7 @@
   "bugs": {
     "url": "https://github.com/UpadhyayAmit/git-worktree-studio/issues"
   },
+  "qna": "https://github.com/UpadhyayAmit/git-worktree-studio/discussions",
   "keywords": [
     "git",
     "worktree",
