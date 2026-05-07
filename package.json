@@ -2,12 +2,35 @@
   "name": "git-worktree-studio",
   "displayName": "Git Worktree Studio",
   "description": "Multi-repo multi-branch parallel development using git worktrees, with MCP server for AI models",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "AmitUpadhyay",
   "author": {
     "name": "Amit Upadhyay"
   },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/UpadhyayAmit/git-worktree-studio"
+  },
+  "homepage": "https://github.com/UpadhyayAmit/git-worktree-studio#readme",
+  "bugs": {
+    "url": "https://github.com/UpadhyayAmit/git-worktree-studio/issues"
+  },
+  "keywords": [
+    "git",
+    "worktree",
+    "multi-branch",
+    "parallel development",
+    "mcp",
+    "source control",
+    "scm",
+    "github",
+    "azure devops"
+  ],
+  "galleryBanner": {
+    "color": "#1e1e2e",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -19,7 +42,7 @@
     "workspaceContains:**/.git"
   ],
   "main": "./out/extension.js",
-  "icon": "resources/multi-branch.svg",
+  "icon": "resources/icon.png",
   "contributes": {
     "configuration": {
       "title": "Git Worktree Studio",
@@ -352,7 +375,8 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile",
     "test": "node ./out/test/runTest.js",
-    "package": "npx vsce package --allow-missing-repository"
+    "package": "npx vsce package",
+    "publish": "npx vsce publish"
   },
   "devDependencies": {
     "@types/node": "^18.0.0",
