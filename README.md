@@ -86,8 +86,8 @@ VS Code Extension (UI)          MCP Server (AI Interface)
           workspace/
           ├── frontend/           (main)
           ├── frontend-wt-feat-a  (worktree)
-          ├── shipment/           (main)
-          └── shipment-wt-fix-x   (worktree)
+          ├── backend/            (main)
+          └── backend-wt-fix-x    (worktree)
 ```
 
 ---
