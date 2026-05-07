@@ -4,8 +4,17 @@ import { GitWorktreeManager } from './gitWorktreeManager';
 import { ReposTreeProvider, ChangesTreeProvider, WorktreeTreeItem } from './treeProvider';
 
 export function activate(context: vscode.ExtensionContext): void {
-    const workspaceFolders = (vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath);
-    const manager = new GitWorktreeManager(workspaceFolders);
+    const workspaceFolders = (vscode.workspace.workspaceFolders ?? []).map((f: vscode.WorkspaceFolder) => f.uri.fsPath);
+
+    // Read configuration
+    function getConfig(): vscode.WorkspaceConfiguration {
+        return vscode.workspace.getConfiguration('gitWorktreeStudio');
+    }
+
+    const manager = new GitWorktreeManager(
+        workspaceFolders,
+        getConfig().get<number>('discoveryDepth', 2)
+    );
 
     const reposProvider = new ReposTreeProvider(manager);
     const changesProvider = new ChangesTreeProvider(manager);
@@ -23,16 +32,71 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(reposView, changesView);
 
     // -------------------------------------------------------------------------
+    // Status bar
+    // -------------------------------------------------------------------------
+
+    const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+    statusBarItem.command = 'gitMultiBranch.refresh';
+    statusBarItem.tooltip = 'Git Worktree Studio — click to refresh';
+    context.subscriptions.push(statusBarItem);
+
+    async function updateStatusBar(): Promise<void> {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            statusBarItem.hide();
+            return;
+        }
+        const filePath = editor.document.uri.fsPath;
+        const repos = await manager.discoverRepos();
+        for (const repo of repos) {
+            for (const wt of repo.worktrees) {
+                if (filePath.startsWith(wt.worktreePath)) {
+                    const aheadBehind = [];
+                    if (wt.ahead > 0) { aheadBehind.push(`↑${wt.ahead}`); }
+                    if (wt.behind > 0) { aheadBehind.push(`↓${wt.behind}`); }
+                    const suffix = aheadBehind.length > 0 ? ` ${aheadBehind.join(' ')}` : '';
+                    statusBarItem.text = `$(git-branch) ${wt.branch}${suffix}`;
+                    statusBarItem.show();
+                    return;
+                }
+            }
+        }
+        statusBarItem.hide();
+    }
+
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveTextEditor(() => { updateStatusBar(); })
+    );
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
     function refreshAll(): void {
         reposProvider.refresh();
         changesProvider.refreshData();
+        updateStatusBar();
     }
 
     async function requireInput(prompt: string, placeholder = ''): Promise<string | undefined> {
         return vscode.window.showInputBox({ prompt, placeHolder: placeholder, ignoreFocusOut: true });
+    }
+
+    async function pickBranch(repoPath: string, prompt: string): Promise<string | undefined> {
+        try {
+            const { local, remote } = await manager.listAllBranches(repoPath);
+            const items = [
+                ...local.map(b => ({ label: b, description: 'local' })),
+                ...remote.map(b => ({ label: b, description: 'remote' }))
+            ];
+            const picked = await vscode.window.showQuickPick(items, {
+                placeHolder: prompt,
+                matchOnDescription: true
+            });
+            return picked?.label;
+        } catch {
+            return requireInput(prompt);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -53,11 +117,20 @@ export function activate(context: vscode.ExtensionContext): void {
             });
             if (!picked?.description) { return; }
 
-            const branchName = await requireInput('Enter branch name', 'feature/my-feature');
+            const branchName = await requireInput('Enter new branch name', 'feature/my-feature');
             if (!branchName) { return; }
 
+            const baseBranch = await pickBranch(picked.description, 'Select base branch (or type a branch name)');
+
+            const customPath = await requireInput(
+                'Worktree path (leave empty for default)',
+                path.join(path.dirname(picked.description), `${path.basename(picked.description)}-wt-${branchName.replace(/[/\\]/g, '-')}`)
+            );
+
             try {
-                const worktreePath = await manager.createWorktree(picked.description, branchName);
+                const worktreePath = baseBranch
+                    ? await manager.createWorktreeFromBase(picked.description, branchName, baseBranch, customPath || undefined)
+                    : await manager.createWorktree(picked.description, branchName, customPath || undefined);
                 vscode.window.showInformationMessage(`Worktree created at: ${worktreePath}`);
                 refreshAll();
             } catch (err) {
@@ -69,11 +142,15 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.commands.registerCommand('gitMultiBranch.addBranch', async (item: WorktreeTreeItem) => {
             if (!item?.repoPath) { return; }
-            const branchName = await requireInput('Enter branch name', 'feature/my-feature');
+            const branchName = await requireInput('Enter new branch name', 'feature/my-feature');
             if (!branchName) { return; }
 
+            const baseBranch = await pickBranch(item.repoPath, 'Select base branch (or type a branch name)');
+
             try {
-                const worktreePath = await manager.createWorktree(item.repoPath, branchName);
+                const worktreePath = baseBranch
+                    ? await manager.createWorktreeFromBase(item.repoPath, branchName, baseBranch)
+                    : await manager.createWorktree(item.repoPath, branchName);
                 vscode.window.showInformationMessage(`Worktree created at: ${worktreePath}`);
                 refreshAll();
             } catch (err) {
@@ -126,6 +203,34 @@ export function activate(context: vscode.ExtensionContext): void {
                 refreshAll();
             } catch (err) {
                 vscode.window.showErrorMessage(`Commit failed: ${err}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('gitMultiBranch.amendCommit', async (item: WorktreeTreeItem) => {
+            if (!item?.worktreePath) { return; }
+            const choice = await vscode.window.showQuickPick(
+                [
+                    { label: 'Keep existing message', value: 'keep' },
+                    { label: 'Edit message', value: 'edit' }
+                ],
+                { placeHolder: 'Amend last commit' }
+            );
+            if (!choice) { return; }
+
+            let message: string | undefined;
+            if (choice.value === 'edit') {
+                message = await requireInput('New commit message');
+                if (!message) { return; }
+            }
+
+            try {
+                await manager.amendCommit(item.worktreePath, message);
+                vscode.window.showInformationMessage('Commit amended successfully.');
+                refreshAll();
+            } catch (err) {
+                vscode.window.showErrorMessage(`Amend failed: ${err}`);
             }
         })
     );
@@ -190,10 +295,16 @@ export function activate(context: vscode.ExtensionContext): void {
 
             const title = await requireInput('PR title');
             if (!title) { return; }
-            const baseBranch = await requireInput('Base branch', 'main') ?? 'main';
+
+            const baseBranch = item.repoPath
+                ? await pickBranch(item.repoPath, 'Select base branch')
+                : await requireInput('Base branch', 'main') ?? 'main';
+            if (!baseBranch) { return; }
+
+            const body = await requireInput('PR description (optional)') ?? '';
 
             try {
-                const result = await manager.createPR(item.worktreePath, title, baseBranch);
+                const result = await manager.createPR(item.worktreePath, title, baseBranch, body);
                 const openBrowser = await vscode.window.showInformationMessage(
                     `PR created: ${result}`,
                     'Open in Browser'
@@ -235,9 +346,43 @@ export function activate(context: vscode.ExtensionContext): void {
     );
 
     context.subscriptions.push(
+        vscode.commands.registerCommand('gitMultiBranch.stashList', async (item: WorktreeTreeItem) => {
+            if (!item?.worktreePath) { return; }
+            try {
+                const stashes = await manager.listStashes(item.worktreePath);
+                if (stashes.length === 0) {
+                    vscode.window.showInformationMessage('No stashes found.');
+                    return;
+                }
+                const picked = await vscode.window.showQuickPick(
+                    stashes.map((s, i) => ({ label: s, index: i })),
+                    { placeHolder: 'Select a stash to pop (or press Escape to cancel)' }
+                );
+                if (!picked) { return; }
+                const action = await vscode.window.showQuickPick(
+                    ['Pop', 'Drop'],
+                    { placeHolder: `Action for "${picked.label}"` }
+                );
+                if (action === 'Pop') {
+                    await manager.stashPop(item.worktreePath);
+                    vscode.window.showInformationMessage('Stash popped.');
+                } else if (action === 'Drop') {
+                    await manager.stashDrop(item.worktreePath, picked.index);
+                    vscode.window.showInformationMessage('Stash dropped.');
+                }
+                refreshAll();
+            } catch (err) {
+                vscode.window.showErrorMessage(`Stash list failed: ${err}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
         vscode.commands.registerCommand('gitMultiBranch.mergeBranch', async (item: WorktreeTreeItem) => {
             if (!item?.worktreePath) { return; }
-            const sourceBranch = await requireInput('Branch to merge into current');
+            const sourceBranch = item.repoPath
+                ? await pickBranch(item.repoPath, 'Select branch to merge into current')
+                : await requireInput('Branch to merge into current');
             if (!sourceBranch) { return; }
 
             try {
@@ -246,6 +391,24 @@ export function activate(context: vscode.ExtensionContext): void {
                 refreshAll();
             } catch (err) {
                 vscode.window.showErrorMessage(`Merge failed: ${err}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('gitMultiBranch.rebaseBranch', async (item: WorktreeTreeItem) => {
+            if (!item?.worktreePath) { return; }
+            const onto = item.repoPath
+                ? await pickBranch(item.repoPath, 'Select branch to rebase onto')
+                : await requireInput('Branch to rebase onto');
+            if (!onto) { return; }
+
+            try {
+                await manager.rebaseBranch(item.worktreePath, onto);
+                vscode.window.showInformationMessage(`Rebased onto "${onto}" successfully.`);
+                refreshAll();
+            } catch (err) {
+                vscode.window.showErrorMessage(`Rebase failed: ${err}`);
             }
         })
     );
@@ -269,7 +432,9 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.commands.registerCommand('gitMultiBranch.switchBranch', async (item: WorktreeTreeItem) => {
             if (!item?.worktreePath) { return; }
-            const branchName = await requireInput('Branch name to checkout');
+            const branchName = item.repoPath
+                ? await pickBranch(item.repoPath, 'Select branch to checkout')
+                : await requireInput('Branch name to checkout');
             if (!branchName) { return; }
 
             try {
@@ -278,6 +443,25 @@ export function activate(context: vscode.ExtensionContext): void {
                 refreshAll();
             } catch (err) {
                 vscode.window.showErrorMessage(`Switch branch failed: ${err}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('gitMultiBranch.renameBranch', async (item: WorktreeTreeItem) => {
+            if (!item?.repoPath || !item.branchName) { return; }
+            const newName = await requireInput(
+                `Rename branch "${item.branchName}" to:`,
+                item.branchName
+            );
+            if (!newName || newName === item.branchName) { return; }
+
+            try {
+                await manager.renameBranch(item.repoPath, item.branchName, newName);
+                vscode.window.showInformationMessage(`Branch renamed to "${newName}".`);
+                refreshAll();
+            } catch (err) {
+                vscode.window.showErrorMessage(`Rename branch failed: ${err}`);
             }
         })
     );
@@ -396,6 +580,22 @@ export function activate(context: vscode.ExtensionContext): void {
     );
 
     context.subscriptions.push(
+        vscode.commands.registerCommand('gitMultiBranch.fetchWorktree', async (item: WorktreeTreeItem) => {
+            if (!item?.worktreePath) { return; }
+            try {
+                await vscode.window.withProgress(
+                    { location: vscode.ProgressLocation.Notification, title: 'Fetching…' },
+                    () => manager.fetch(item.worktreePath!)
+                );
+                vscode.window.showInformationMessage('Fetch completed.');
+                refreshAll();
+            } catch (err) {
+                vscode.window.showErrorMessage(`Fetch failed: ${err}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
         vscode.commands.registerCommand('gitMultiBranch.startMcpServer', () => {
             const extensionPath = context.extensionPath;
             const serverPath = path.join(extensionPath, 'out', 'mcp', 'server.js');
@@ -406,11 +606,37 @@ export function activate(context: vscode.ExtensionContext): void {
     );
 
     // -------------------------------------------------------------------------
-    // Auto-refresh: every 30s + file watcher with 2s debounce
+    // Configuration change handler
     // -------------------------------------------------------------------------
 
-    const refreshInterval = setInterval(() => refreshAll(), 30_000);
-    context.subscriptions.push({ dispose: () => clearInterval(refreshInterval) });
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('gitWorktreeStudio.discoveryDepth')) {
+                manager.setDiscoveryDepth(getConfig().get<number>('discoveryDepth', 2));
+                refreshAll();
+            }
+            if (e.affectsConfiguration('gitWorktreeStudio.autoRefreshInterval')) {
+                restartAutoRefresh();
+            }
+        })
+    );
+
+    // -------------------------------------------------------------------------
+    // Auto-refresh: configurable interval + file watcher with 2s debounce
+    // -------------------------------------------------------------------------
+
+    let refreshInterval: ReturnType<typeof setInterval> | undefined;
+
+    function restartAutoRefresh(): void {
+        if (refreshInterval) { clearInterval(refreshInterval); }
+        const interval = getConfig().get<number>('autoRefreshInterval', 30000);
+        if (interval > 0) {
+            refreshInterval = setInterval(() => refreshAll(), interval);
+        }
+    }
+
+    restartAutoRefresh();
+    context.subscriptions.push({ dispose: () => { if (refreshInterval) { clearInterval(refreshInterval); } } });
 
     let debounceTimer: ReturnType<typeof setTimeout> | undefined;
     const watcher = vscode.workspace.createFileSystemWatcher('**/.git/{HEAD,index,FETCH_HEAD}');
@@ -425,12 +651,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
     // Update manager when workspace folders change
     context.subscriptions.push(
-        vscode.workspace.onDidChangeWorkspaceFolders(e => {
+        vscode.workspace.onDidChangeWorkspaceFolders((e: vscode.WorkspaceFoldersChangeEvent) => {
             const folders = (e.added.concat(
                 vscode.workspace.workspaceFolders?.filter(
-                    f => !e.removed.some(r => r.uri.fsPath === f.uri.fsPath)
+                    (f: vscode.WorkspaceFolder) => !e.removed.some((r: vscode.WorkspaceFolder) => r.uri.fsPath === f.uri.fsPath)
                 ) ?? []
-            )).map(f => f.uri.fsPath);
+            )).map((f: vscode.WorkspaceFolder) => f.uri.fsPath);
             manager.updateWorkspaceFolders(folders);
             refreshAll();
         })
@@ -438,6 +664,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     // Initial load
     changesProvider.refreshData();
+    updateStatusBar();
 }
 
 export function deactivate(): void {
